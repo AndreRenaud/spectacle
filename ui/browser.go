@@ -209,9 +209,9 @@ func (b *Browser) MoveSelection(dx, dy int) {
 // SelectItem activates the currently selected entry.
 // If it is a directory, the browser navigates into it and returns nil.
 // If it is a file, the full path within the FS is returned.
-func (b *Browser) SelectItem() *string {
+func (b *Browser) SelectItem() (string, bool) {
 	if len(b.entries) == 0 || b.selectedIdx >= len(b.entries) {
-		return nil
+		return "", false
 	}
 	entry := b.entries[b.selectedIdx]
 	if entry.IsDir() {
@@ -223,14 +223,14 @@ func (b *Browser) SelectItem() *string {
 		b.Dir = filepath.Clean(newDir)
 		b.selectedIdx = 0
 		b.reload()
-		return nil
+		return "", false
 	}
 	// Return the full path for files.
 	path := b.Dir + "/" + entry.Name()
 	if b.Dir == "." {
 		path = entry.Name()
 	}
-	return &path
+	return filepath.Clean(path), true
 }
 
 func max(a, b float64) float64 {

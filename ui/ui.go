@@ -53,8 +53,8 @@ func (g *Game) Update() error {
 			g.browser.MoveSelection(0, 1)
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			if path := g.browser.SelectItem(); path != nil {
-				log.Printf("selected file: %s", *path)
+			if path, ok := g.browser.SelectItem(); ok {
+				log.Printf("selected file: %s", path)
 			}
 		}
 	}
