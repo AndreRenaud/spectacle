@@ -36,11 +36,21 @@ func init() {
 }
 
 type Game struct {
-	Theme   Theme
-	browser *Browser
+	Theme     Theme
+	browser   *Browser
+	imageView *ImageView
+	fsys      fs.ReadDirFS
 }
 
 func (g *Game) Update() error {
+	if g.imageView != nil {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+			g.imageView = nil
+		} else {
+			g.imageView.Update()
+		}
+		return nil
+	}
 	if g.browser != nil {
 		if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
 			g.browser.MoveSelection(-1, 0)
@@ -53,8 +63,17 @@ func (g *Game) Update() error {
 			g.browser.MoveSelection(0, 1)
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			if path, ok := g.browser.SelectItem(); ok {
-				log.Printf("selected file: %s", path)
+			if filePath, ok := g.browser.SelectItem(); ok {
+				if isImageFile(filePath) {
+					iv, err := NewImageView(g.fsys, filePath)
+					if err != nil {
+						log.Printf("imageview: %v", err)
+					} else {
+						g.imageView = iv
+					}
+				} else {
+					log.Printf("selected file: %s", filePath)
+				}
 			}
 		}
 	}
@@ -62,6 +81,10 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if g.imageView != nil {
+		g.imageView.Draw(screen)
+		return
+	}
 	screen.Fill(g.Theme.Background)
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(60, 100)
@@ -88,6 +111,7 @@ func Run(fsys fs.ReadDirFS) error {
 	game := &Game{
 		Theme:   DefaultTheme,
 		browser: NewBrowser(fsys, ".", 96, 8, labelFont),
+		fsys:    fsys,
 	}
 	game.browser.SetTheme(&game.Theme)
 	return ebiten.RunGame(game)
