@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
@@ -40,6 +41,23 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
+	if g.browser != nil {
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+			g.browser.MoveSelection(-1, 0)
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+			g.browser.MoveSelection(1, 0)
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+			g.browser.MoveSelection(0, -1)
+		} else if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+			g.browser.MoveSelection(0, 1)
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			if path := g.browser.SelectItem(); path != nil {
+				log.Printf("selected file: %s", *path)
+			}
+		}
+	}
 	return nil
 }
 
@@ -69,7 +87,7 @@ func Run(fsys fs.ReadDirFS) error {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	game := &Game{
 		Theme:   DefaultTheme,
-		browser: NewBrowser(fsys, ".", 48, labelFont),
+		browser: NewBrowser(fsys, ".", 96, 8, labelFont),
 	}
 	game.browser.SetTheme(&game.Theme)
 	return ebiten.RunGame(game)
