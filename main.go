@@ -9,10 +9,7 @@ import (
 )
 
 func main() {
-	fsys, err := fs.Sub(os.DirFS("."), ".")
-	if err != nil {
-		log.Fatal(err)
-	}
+	fsys := os.DirFS(".")
 	if err := ui.Run(fsys.(fs.ReadDirFS)); err != nil {
 		log.Fatal(err)
 	}

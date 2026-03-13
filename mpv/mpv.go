@@ -8,14 +8,16 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/gen2brain/go-mpv"
 )
 
 type MPVPlayer struct {
-	speed    float64
-	m        *mpv.Mpv
-	callback func(string)
+	speed        float64
+	m            *mpv.Mpv
+	callback     func(string)
+	positionFunc func(upto, total time.Duration)
 }
 
 // NewMPVPlayer starts a player, and it will call the `callback` function whenever
@@ -37,6 +39,12 @@ func NewMPVPlayer(callback func(string)) (*MPVPlayer, error) {
 	//return nil, err
 	//}
 	if err := m.ObserveProperty(0, "chapter", mpv.FormatInt64); err != nil {
+		return nil, err
+	}
+	if err := m.ObserveProperty(0, "time-pos/full", mpv.FormatDouble); err != nil {
+		return nil, err
+	}
+	if err := m.ObserveProperty(0, "duration/full", mpv.FormatDouble); err != nil {
 		return nil, err
 	}
 
@@ -113,6 +121,10 @@ func (m *MPVPlayer) LoadFile(filename string, loop bool) error {
 	return nil
 }
 
+func (m *MPVPlayer) MonitorPosition(mon func(upto, total time.Duration)) {
+	m.positionFunc = mon
+}
+
 func (m *MPVPlayer) Stop() error {
 	m.m.Command([]string{"stop"})
 	m.m.Command([]string{"playlist-clear"})
@@ -140,6 +152,7 @@ func (m *MPVPlayer) Speed() float64 {
 }
 
 func (m *MPVPlayer) run() {
+	var currentDuration time.Duration
 	for {
 		e := m.m.WaitEvent(10000)
 
@@ -156,6 +169,23 @@ func (m *MPVPlayer) run() {
 						log.Printf("Chapter change to %d %q", chapter, title)
 						//chapterTime, err := m.m.GetProperty(fmt.Sprintf("chapter-list/%d/time", chapter), mpv.FormatDouble)
 						go m.callback(title)
+					}
+				}
+			case "duration/full":
+				if prop.Data != nil {
+					duration := time.Duration(prop.Data.(float64)*float64(time.Second)) * time.Nanosecond
+					log.Printf("Duration: %s", duration)
+					currentDuration = duration
+					if m.positionFunc != nil {
+						m.positionFunc(0, currentDuration)
+					}
+				}
+			case "time-pos/full":
+				if prop.Data != nil {
+					position := time.Duration(prop.Data.(float64)*float64(time.Second)) * time.Nanosecond
+					//log.Printf("Position: %s", position)
+					if m.positionFunc != nil {
+						m.positionFunc(position, currentDuration)
 					}
 				}
 			default:

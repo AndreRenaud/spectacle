@@ -36,10 +36,11 @@ func init() {
 }
 
 type Game struct {
-	Theme     Theme
-	browser   *Browser
-	imageView *ImageView
-	fsys      fs.ReadDirFS
+	Theme       Theme
+	browser     *Browser
+	imageView   *ImageView
+	fsys        fs.ReadDirFS
+	audioPlayer *AudioPlayer
 }
 
 func (g *Game) Update() error {
@@ -71,6 +72,10 @@ func (g *Game) Update() error {
 					} else {
 						g.imageView = iv
 					}
+				} else if isAudioFile(filePath) && g.audioPlayer != nil {
+					if err := g.audioPlayer.Play(filePath); err != nil {
+						log.Printf("audioplayer: %v", err)
+					}
 				} else {
 					log.Printf("selected file: %s", filePath)
 				}
@@ -83,15 +88,18 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	if g.imageView != nil {
 		g.imageView.Draw(screen)
-		return
+	} else {
+		screen.Fill(g.Theme.Background)
+		op := &text.DrawOptions{}
+		op.GeoM.Translate(60, 100)
+		op.ColorScale.ScaleWithColor(g.Theme.Text)
+		text.Draw(screen, "Spectacle Media Player", titleFont, op)
+		if g.browser != nil {
+			g.browser.Draw(screen, 0, 200)
+		}
 	}
-	screen.Fill(g.Theme.Background)
-	op := &text.DrawOptions{}
-	op.GeoM.Translate(60, 100)
-	op.ColorScale.ScaleWithColor(g.Theme.Text)
-	text.Draw(screen, "Spectacle Media Player", titleFont, op)
-	if g.browser != nil {
-		g.browser.Draw(screen, 0, 200)
+	if g.audioPlayer != nil {
+		g.audioPlayer.Draw(screen, ScreenWidth-audioPlayerWidth-20, ScreenHeight-audioPlayerHeight-20)
 	}
 }
 
@@ -114,5 +122,12 @@ func Run(fsys fs.ReadDirFS) error {
 		fsys:    fsys,
 	}
 	game.browser.SetTheme(&game.Theme)
+	ap, err := NewAudioPlayer()
+	if err != nil {
+		log.Printf("audioplayer init: %v", err)
+	} else {
+		game.audioPlayer = ap
+		game.audioPlayer.SetTheme(&game.Theme)
+	}
 	return ebiten.RunGame(game)
 }
