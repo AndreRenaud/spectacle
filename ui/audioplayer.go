@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"image/color"
-	"log"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -48,7 +47,7 @@ func (ap *AudioPlayer) SetTheme(t *Theme) {
 // NewAudioPlayer creates a new always-active audio player.
 func NewAudioPlayer() (*AudioPlayer, error) {
 	ap := &AudioPlayer{}
-	player, err := mpv.NewMPVPlayer(ap.mpvCallback)
+	player, err := mpv.NewMPVPlayer()
 	if err != nil {
 		return nil, err
 	}
@@ -62,10 +61,6 @@ func (ap *AudioPlayer) positionUpdate(upto, total time.Duration) {
 	ap.position = upto
 	ap.total = total
 	ap.mu.Unlock()
-}
-
-func (ap *AudioPlayer) mpvCallback(info string) {
-	log.Printf("MPV callback: %s", info)
 }
 
 // Play starts playing the given file and tracks its display title.
@@ -110,12 +105,16 @@ const (
 func (ap *AudioPlayer) Draw(screen *ebiten.Image, x, y int) {
 	ap.mu.Lock()
 	song := ap.currentSong
+	title := ap.player.GetTitle()
 	position := ap.position
 	total := ap.total
 	ap.mu.Unlock()
 
 	if song == "" {
 		return
+	}
+	if title == "" {
+		title = song
 	}
 
 	var textColor, accentColor, barBg color.RGBA
@@ -148,11 +147,11 @@ func (ap *AudioPlayer) Draw(screen *ebiten.Image, x, y int) {
 	titleOp := &text.DrawOptions{}
 	titleOp.GeoM.Translate(fx, fy)
 	titleOp.ColorScale.ScaleWithColor(textColor)
-	text.Draw(screen, song, labelFont, titleOp)
+	text.Draw(screen, title, labelFont, titleOp)
 
 	// Time text
 	timeStr := formatDuration(position) + " / " + formatDuration(total)
-	_, titleH := text.Measure(song, labelFont, 0)
+	_, titleH := text.Measure(title, labelFont, 0)
 	timeY := fy + titleH + float64(audioBarHeight)/2
 	timeOp := &text.DrawOptions{}
 	timeOp.GeoM.Translate(fx, timeY)

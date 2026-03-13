@@ -16,17 +16,14 @@ import (
 type MPVPlayer struct {
 	speed        float64
 	m            *mpv.Mpv
-	callback     func(string)
 	positionFunc func(upto, total time.Duration)
+	title        string
 }
 
 // NewMPVPlayer starts a player, and it will call the `callback` function whenever
 // we start a new chapter (passing the chapter title into the function)
 // TODO: If we have an audio path latency, can we compensate with the `audio-delay` parameter?
-func NewMPVPlayer(callback func(string)) (*MPVPlayer, error) {
-	if callback == nil {
-		return nil, fmt.Errorf("callback cannot be nil")
-	}
+func NewMPVPlayer() (*MPVPlayer, error) {
 	m := mpv.New()
 
 	if err := m.RequestLogMessages("info"); err != nil {
@@ -47,6 +44,9 @@ func NewMPVPlayer(callback func(string)) (*MPVPlayer, error) {
 	if err := m.ObserveProperty(0, "duration/full", mpv.FormatDouble); err != nil {
 		return nil, err
 	}
+	//if err := m.ObserveProperty(0, "media-title", mpv.FormatString); err != nil {
+	//return nil, err
+	//}
 
 	//_ = m.SetPropertyString("input-default-bindings", "yes")
 	//_ = m.SetOptionString("input-vo-keyboard", "yes")
@@ -92,9 +92,13 @@ func NewMPVPlayer(callback func(string)) (*MPVPlayer, error) {
 		return nil, err
 	}
 
-	retval := &MPVPlayer{m: m, callback: callback, speed: 1.0}
+	retval := &MPVPlayer{m: m, speed: 1.0}
 	go retval.run()
 	return retval, nil
+}
+
+func (m *MPVPlayer) GetTitle() string {
+	return m.title
 }
 
 func (m *MPVPlayer) LoadFile(filename string, loop bool) error {
@@ -161,16 +165,6 @@ func (m *MPVPlayer) run() {
 			prop := e.Property()
 
 			switch prop.Name {
-			case "chapter":
-				if prop.Data != nil {
-					chapter := prop.Data.(int64)
-					if chapter >= 0 {
-						title := m.m.GetPropertyString(fmt.Sprintf("chapter-list/%d/title", chapter))
-						log.Printf("Chapter change to %d %q", chapter, title)
-						//chapterTime, err := m.m.GetProperty(fmt.Sprintf("chapter-list/%d/time", chapter), mpv.FormatDouble)
-						go m.callback(title)
-					}
-				}
 			case "duration/full":
 				if prop.Data != nil {
 					duration := time.Duration(prop.Data.(float64)*float64(time.Second)) * time.Nanosecond
@@ -188,6 +182,13 @@ func (m *MPVPlayer) run() {
 						m.positionFunc(position, currentDuration)
 					}
 				}
+			//case "media-title":
+			//log.Printf("property: %s data=%#v format=%d", prop.Name, prop.Data, prop.Format)
+			//if prop.Data != nil {
+			//title := prop.Data.(string)
+			//log.Printf("Title: %s", title)
+			//m.title = title
+			//}
 			default:
 				log.Printf("property: %s data=%#v format=%d", prop.Name, prop.Data, prop.Format)
 			}
@@ -195,6 +196,7 @@ func (m *MPVPlayer) run() {
 			if p, err := m.m.GetProperty("media-title", mpv.FormatString); err != nil {
 				log.Printf("Load error: %s", err)
 			} else {
+				m.title = p.(string)
 				log.Printf("title: %s", p.(string))
 			}
 		case mpv.EventLogMsg:
@@ -208,11 +210,10 @@ func (m *MPVPlayer) run() {
 			if ef.Reason == mpv.EndFileError {
 				log.Printf("error: %s", ef.Error)
 			}
+			m.title = ""
 		case mpv.EventShutdown:
 			log.Printf("shutdown: %d", e.EventID)
 			return
-		case mpv.EventPlaybackRestart:
-			m.callback("RESET")
 
 		default:
 			log.Printf("event: %s[%d]", e.EventID, e.EventID)
