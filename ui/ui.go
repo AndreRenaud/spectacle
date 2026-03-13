@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	volume "github.com/itchyny/volume-go"
 )
 
 //go:embed resources/Michroma-Regular.ttf
@@ -87,6 +88,16 @@ func (g *Game) Update() error {
 					log.Printf("selected file: %s", filePath)
 				}
 			}
+		}
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyEqual) {
+		if err := volume.IncreaseVolume(5); err != nil {
+			log.Printf("volume up: %v", err)
+		}
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyMinus) {
+		if err := volume.IncreaseVolume(-5); err != nil {
+			log.Printf("volume down: %v", err)
 		}
 	}
 	return nil
