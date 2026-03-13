@@ -41,6 +41,7 @@ type Game struct {
 	imageView   *ImageView
 	fsys        fs.ReadDirFS
 	audioPlayer *AudioPlayer
+	moviePlayer *MoviePlayer
 }
 
 func (g *Game) Update() error {
@@ -73,8 +74,14 @@ func (g *Game) Update() error {
 						g.imageView = iv
 					}
 				} else if isAudioFile(filePath) && g.audioPlayer != nil {
+					g.moviePlayer.Stop()
 					if err := g.audioPlayer.Play(filePath); err != nil {
 						log.Printf("audioplayer: %v", err)
+					}
+				} else if isVideoFile(filePath) && g.moviePlayer != nil {
+					g.audioPlayer.Stop()
+					if err := g.moviePlayer.Play(filePath); err != nil {
+						log.Printf("movieplayer: %v", err)
 					}
 				} else {
 					log.Printf("selected file: %s", filePath)
@@ -104,10 +111,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return ScreenWidth, ScreenHeight
-}
+	x, y := ebiten.WindowPosition()
 
-func (g *Game) LayoutF(outsideWidth, outsideHeight float64) (float64, float64) {
+	// darwin scaling issues
+	scale := 2
+	outsideWidth = outsideWidth * scale
+	outsideHeight = outsideHeight * scale
+	x = x * scale
+	y = y * scale
+	// darwin title
+	y -= 24 * scale
+	if g.moviePlayer != nil {
+		g.moviePlayer.SetGeometry(x, y, outsideWidth, outsideHeight)
+	}
 	return ScreenWidth, ScreenHeight
 }
 
@@ -128,6 +144,13 @@ func Run(fsys fs.ReadDirFS) error {
 	} else {
 		game.audioPlayer = ap
 		game.audioPlayer.SetTheme(&game.Theme)
+	}
+	mp, err := NewMoviePlayer()
+	if err != nil {
+		log.Printf("movieplayer init: %v", err)
+	} else {
+		game.moviePlayer = mp
+		game.moviePlayer.SetTheme(&game.Theme)
 	}
 	return ebiten.RunGame(game)
 }

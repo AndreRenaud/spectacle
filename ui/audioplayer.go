@@ -179,3 +179,12 @@ func (ap *AudioPlayer) Draw(screen *ebiten.Image, x, y int) {
 func (ap *AudioPlayer) Close() error {
 	return ap.player.Close()
 }
+
+func (ap *AudioPlayer) Stop() error {
+	ap.mu.Lock()
+	ap.currentSong = ""
+	ap.position = 0
+	ap.total = 0
+	ap.mu.Unlock()
+	return ap.player.Stop()
+}

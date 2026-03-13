@@ -18,6 +18,7 @@ type MPVPlayer struct {
 	m            *mpv.Mpv
 	positionFunc func(upto, total time.Duration)
 	title        string
+	geometry     string
 }
 
 // NewMPVPlayer starts a player, and it will call the `callback` function whenever
@@ -51,6 +52,16 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	//_ = m.SetPropertyString("input-default-bindings", "yes")
 	//_ = m.SetOptionString("input-vo-keyboard", "yes")
 	//_ = m.SetOption("osc", mpv.FormatFlag, true)
+	if err := m.SetProperty("border", mpv.FormatFlag, false); err != nil {
+		return nil, fmt.Errorf("focus-on: %w", err)
+	}
+	if err := m.SetPropertyString("geometry", "1920x1080+0+0"); err != nil {
+		return nil, fmt.Errorf("geometry: %w", err)
+	}
+
+	//if err := m.SetProperty("fullscreen", mpv.FormatFlag, true); err != nil {
+	//return nil, err
+	//}
 
 	// Turn on low-latency audio, as per `mpv --show-profile=low-latency`
 	if err := m.SetProperty("audio-buffer", mpv.FormatInt64, 0); err != nil {
@@ -99,6 +110,15 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 
 func (m *MPVPlayer) GetTitle() string {
 	return m.title
+}
+
+func (m *MPVPlayer) SetGeometry(x, y, width, height int) error {
+	geometry := fmt.Sprintf("%dx%d+%d+%d", width, height, x, y)
+	if geometry == m.geometry {
+		return nil
+	}
+	m.geometry = geometry
+	return m.m.SetPropertyString("geometry", geometry)
 }
 
 func (m *MPVPlayer) LoadFile(filename string, loop bool) error {
