@@ -55,6 +55,9 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 	if err := m.SetProperty("border", mpv.FormatFlag, false); err != nil {
 		return nil, fmt.Errorf("focus-on: %w", err)
 	}
+	if err := m.SetProperty("ontop", mpv.FormatFlag, true); err != nil {
+		return nil, fmt.Errorf("ontop: %w", err)
+	}
 	if err := m.SetPropertyString("geometry", "1920x1080+0+0"); err != nil {
 		return nil, fmt.Errorf("geometry: %w", err)
 	}
