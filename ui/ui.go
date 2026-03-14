@@ -145,7 +145,7 @@ func Run(fsys fs.ReadDirFS) error {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	game := &Game{
 		Theme:   DefaultTheme,
-		browser: NewBrowser(fsys, ".", 96, 8, labelFont),
+		browser: NewBrowser(fsys, ".", 160, 8, labelFont),
 		fsys:    fsys,
 	}
 	game.browser.SetTheme(&game.Theme)

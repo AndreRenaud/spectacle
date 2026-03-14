@@ -180,7 +180,7 @@ func (b *Browser) Draw(screen *ebiten.Image, x, y int) {
 			if b.theme != nil {
 				labelOp.ColorScale.ScaleWithColor(b.theme.Text)
 			}
-			text.Draw(screen, name, b.Font, labelOp)
+			DrawWrapped(screen, name, b.Font, b.CellSize-b.BorderSize*2, AlignCenter, labelOp)
 		}
 	}
 }
