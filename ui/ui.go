@@ -33,7 +33,7 @@ func init() {
 		log.Fatal(err)
 	}
 	titleFont = &text.GoTextFace{Source: fontSource, Size: 64}
-	labelFont = &text.GoTextFace{Source: fontSource, Size: 18}
+	labelFont = &text.GoTextFace{Source: fontSource, Size: 16}
 }
 
 type Game struct {
@@ -145,7 +145,7 @@ func Run(fsys fs.ReadDirFS) error {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	game := &Game{
 		Theme:   DefaultTheme,
-		browser: NewBrowser(fsys, ".", 160, 8, labelFont),
+		browser: NewBrowser(fsys, ".", 180, 8, labelFont),
 		fsys:    fsys,
 	}
 	game.browser.SetTheme(&game.Theme)
