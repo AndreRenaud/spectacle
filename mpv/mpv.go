@@ -5,9 +5,11 @@ package mpv
 import (
 	"encoding/json"
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gen2brain/go-mpv"
@@ -19,6 +21,9 @@ type MPVPlayer struct {
 	positionFunc func(upto, total time.Duration)
 	title        string
 	geometry     string
+
+	overlaysActive map[int]struct{}
+	overlaysLock   sync.Mutex
 }
 
 // NewMPVPlayer starts a player, and it will call the `callback` function whenever
@@ -106,7 +111,7 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 		return nil, err
 	}
 
-	retval := &MPVPlayer{m: m, speed: 1.0}
+	retval := &MPVPlayer{m: m, speed: 1.0, overlaysActive: make(map[int]struct{})}
 	go retval.run()
 	return retval, nil
 }
@@ -280,4 +285,81 @@ func (m *MPVPlayer) AudioLevel() (float64, error) {
 		return strconv.ParseFloat(level, 64)
 	}
 	return 0, fmt.Errorf("not found")
+}
+
+func (m *MPVPlayer) OverlayAdd(x, y int, img image.Image) (int, error) {
+	m.overlaysLock.Lock()
+	var id int
+	for id = range 64 {
+		if _, exists := m.overlaysActive[id]; !exists {
+			m.overlaysActive[id] = struct{}{}
+			break
+		}
+	}
+	m.overlaysLock.Unlock()
+
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+	stride := 4 * w
+
+	// Convert to BGRA premultiplied-alpha (8 bits per component, B as least-significant byte).
+	// image.Color.RGBA() returns 16-bit alpha-premultiplied values; shift right 8 to get 8-bit.
+	data := make([]byte, stride*h)
+	for py := 0; py < h; py++ {
+		for px := 0; px < w; px++ {
+			r, g, b, a := img.At(bounds.Min.X+px, bounds.Min.Y+py).RGBA()
+			i := py*stride + px*4
+			data[i+0] = uint8(b >> 8)
+			data[i+1] = uint8(g >> 8)
+			data[i+2] = uint8(r >> 8)
+			data[i+3] = uint8(a >> 8)
+		}
+	}
+
+	f, err := os.CreateTemp("", "mpv-overlay-*.bgra")
+	if err != nil {
+		return -1, fmt.Errorf("overlay temp file: %w", err)
+	}
+	name := f.Name()
+	defer os.Remove(name)
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return -1, fmt.Errorf("overlay write: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return -1, fmt.Errorf("overlay close: %w", err)
+	}
+
+	// mpv reads the file into memory before the command returns, so it is safe
+	// to remove the temp file via the deferred os.Remove above.
+	return id, m.m.Command([]string{
+		"overlay-add",
+		strconv.Itoa(id),
+		strconv.Itoa(x),
+		strconv.Itoa(y),
+		name,
+		"0", // offset
+		"bgra",
+		strconv.Itoa(w),
+		strconv.Itoa(h),
+		strconv.Itoa(stride),
+		strconv.Itoa(w), // dw
+		strconv.Itoa(h), // dh
+	})
+}
+
+func (m *MPVPlayer) OverlayRemove(id int) error {
+	m.overlaysLock.Lock()
+	defer m.overlaysLock.Unlock()
+	if _, exists := m.overlaysActive[id]; !exists {
+		log.Printf("overlay: remove: id %d not found", id)
+	} else {
+		delete(m.overlaysActive, id)
+	}
+	return m.m.Command([]string{
+		"overlay-remove",
+		strconv.Itoa(id),
+	})
 }
