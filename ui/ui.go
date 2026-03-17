@@ -124,14 +124,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	x, y := ebiten.WindowPosition()
 
+	//log.Printf("Scale %f", ebiten.Monitor().DeviceScaleFactor())
+
 	// darwin scaling issues
-	scale := 2
-	outsideWidth = outsideWidth * scale
-	outsideHeight = outsideHeight * scale
-	x = x * scale
-	y = y * scale
+	scale := ebiten.Monitor().DeviceScaleFactor()
+	outsideWidth = int(float64(outsideWidth) * scale)
+	outsideHeight = int(float64(outsideHeight) * scale)
+	x = int(float64(x) * scale)
+	y = int(float64(y) * scale)
 	// darwin title
-	y -= 24 * scale
+	y -= int(24 * scale)
 	if g.moviePlayer != nil {
 		g.moviePlayer.SetGeometry(x, y, outsideWidth, outsideHeight)
 	}
