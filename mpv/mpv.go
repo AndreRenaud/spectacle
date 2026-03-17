@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,8 @@ type MPVPlayer struct {
 	title        string
 	geometry     string
 
-	overlaysActive map[int]struct{}
+	// overlaysActive maps overlay id to whether it is a text overlay (true) or image overlay (false).
+	overlaysActive map[int]bool
 	overlaysLock   sync.Mutex
 }
 
@@ -111,7 +113,7 @@ func NewMPVPlayer() (*MPVPlayer, error) {
 		return nil, err
 	}
 
-	retval := &MPVPlayer{m: m, speed: 1.0, overlaysActive: make(map[int]struct{})}
+	retval := &MPVPlayer{m: m, speed: 1.0, overlaysActive: make(map[int]bool)}
 	go retval.run()
 	return retval, nil
 }
@@ -287,12 +289,12 @@ func (m *MPVPlayer) AudioLevel() (float64, error) {
 	return 0, fmt.Errorf("not found")
 }
 
-func (m *MPVPlayer) OverlayAdd(x, y int, img image.Image) (int, error) {
+func (m *MPVPlayer) OverlayAddImage(x, y int, img image.Image) (int, error) {
 	m.overlaysLock.Lock()
 	var id int
 	for id = range 64 {
 		if _, exists := m.overlaysActive[id]; !exists {
-			m.overlaysActive[id] = struct{}{}
+			m.overlaysActive[id] = false // image overlay
 			break
 		}
 	}
@@ -350,13 +352,67 @@ func (m *MPVPlayer) OverlayAdd(x, y int, img image.Image) (int, error) {
 	})
 }
 
+func (m *MPVPlayer) OverlayAddText(x, y int, text string) (int, error) {
+	m.overlaysLock.Lock()
+	var id int
+	for id = range 64 {
+		if _, exists := m.overlaysActive[id]; !exists {
+			m.overlaysActive[id] = true // text overlay
+			break
+		}
+	}
+	m.overlaysLock.Unlock()
+	// What font?
+	font, err := m.m.GetProperty("osd-font", mpv.FormatString)
+	if err != nil {
+		log.Printf("cannot get osd-font property: %s", err)
+		font = "sans-serif"
+	}
+	log.Printf("Using font: %s", font)
+	// Font size?
+	size, err := m.m.GetProperty("osd-font-size", mpv.FormatInt64)
+	if err != nil {
+		log.Printf("cannot get osd-font-size property: %s", err)
+		size = int64(24)
+	}
+	log.Printf("Using font size: %d", size)
+
+	// Prepend an ASS \pos tag to place the text at the requested coordinates.
+	// Escape backslashes and double-quotes for mpv's command string parser.
+	assData := fmt.Sprintf("{\\pos(%d,%d)}%s", x, y, text)
+	escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(assData)
+	//cmd := fmt.Sprintf(`osd-overlay id=%d format=ass-events data="%s"`, id, escaped)
+	return id, m.m.Command([]string{
+		"osd-overlay",
+		strconv.Itoa(id),
+		"ass-events",
+		escaped,
+	})
+}
+
+func (m *MPVPlayer) SetOverlayFont(font string, size int) error {
+	if err := m.m.SetOptionString("osd-font", font); err != nil {
+		return fmt.Errorf("cannot set osd-font property: %w", err)
+	}
+	if err := m.m.SetOption("osd-font-size", mpv.FormatInt64, int64(size)); err != nil {
+		return fmt.Errorf("cannot set osd-font-size property: %w", err)
+	}
+	return nil
+}
+
 func (m *MPVPlayer) OverlayRemove(id int) error {
 	m.overlaysLock.Lock()
-	defer m.overlaysLock.Unlock()
-	if _, exists := m.overlaysActive[id]; !exists {
+	isText, exists := m.overlaysActive[id]
+	if !exists {
 		log.Printf("overlay: remove: id %d not found", id)
 	} else {
 		delete(m.overlaysActive, id)
+	}
+	m.overlaysLock.Unlock()
+
+	if isText {
+		// Text overlays added via osd-overlay are removed by setting format=none.
+		return m.m.CommandString(fmt.Sprintf("osd-overlay id=%d format=none", id))
 	}
 	return m.m.Command([]string{
 		"overlay-remove",
